@@ -84,38 +84,33 @@ export default async function handler(req: any, res: any) {
 
       CRITICAL INSTRUCTIONS:
       1. TRANSFORMATION: You must rotate the object to match the Target Viewpoint exactly.
-      2. INFERENCE: If the new view hides details, logically infer the design based on the item's style.
-      3. BACKGROUND: Place the object in a professional, neutral studio background (soft grey/white). COMPLETELY REMOVE the original background.
-      4. FIDELITY: Keep the materials, colors, and design details identical to the product in the input image.
-      5. QUANTITY: PRESERVE EXACT NUMBER OF ITEMS. Do not add or remove any furniture pieces.
+      2. PRESERVATION: Maintain the exact materials, textures (wood grain, fabric patterns), and structural proportions of the original furniture.
+      3. BACKGROUND: Place the object in a pure white studio background with soft, natural contact shadows.
+      4. INTEGRITY: Do not distort the legs or shape of the furniture.
       
-      The result must look like a fresh photo taken from the requested angle.`;
+      Output only the requested view.`;
     } else if (featureType === FeatureType.SCENE_PLACEMENT) {
       const optionStr = String(option);
       const isCustomDescription = optionStr.length > 25 || (optionStr.includes(' ') && !Object.values(RoomOption).includes(option as RoomOption));
       
       const sceneDescription = isCustomDescription 
         ? `a custom environment described as: "${optionStr}"` 
-        : `a brand new, high-end, photorealistic ${optionStr}`;
+        : `a modern, high-end ${optionStr}`;
 
-      prompt = `You are a professional interior designer.
-      Your task is to place the furniture item from the input image into a specific environment.
-
-      Target Scene: ${optionStr}.
+      prompt = `You are a professional interior designer and 3D visualizer.
+      Place the furniture item from the input image into the following scene: ${sceneDescription}.
 
       CRITICAL INSTRUCTIONS:
-      1. NEW ENVIRONMENT: Place the product in ${sceneDescription}.
-      2. DIFFERENTIATION: The background and lighting MUST be completely different from the original image.
-      3. INTEGRATION: Ensure realistic shadows, reflections, and lighting matching the scene.
-      4. ISOLATION: Cleanly separate the furniture from its original background before placing it.
-      
-      The final image should look like a professional catalog photo in the requested setting.`;
+      1. COMPOSITION: The furniture must be the main focus. Ensure it is placed on the floor/ground with realistic contact shadows and reflections.
+      2. LIGHTING: Match the lighting on the furniture to the ambient lighting of the room (direction, temperature, intensity).
+      3. SCALE: Ensure the furniture is scaled correctly relative to the room and other objects.
+      4. STYLE: The room style should complement the furniture's design.
+      5. NO HALOS: Ensure clean blending between the furniture edges and the new background.`;
     } else if (featureType === FeatureType.BACKGROUND_REMOVAL) {
-      // Simplified, direct editing prompt for better success rate
-      prompt = `Remove the background from this image. 
-      Keep the main furniture item exactly as is. 
-      Make the background fully transparent (alpha channel). 
-      Ensure the edges are clean.`;
+      prompt = `Strictly remove the background from this furniture image.
+      Output the furniture item on a purely transparent background (alpha channel).
+      Ensure complex edges (like chair legs or fluffy textures) are masked precisely.
+      Do not change the color or lighting of the furniture itself.`;
     }
 
     // IMPORTANT: Send image part FIRST, then text prompt.
