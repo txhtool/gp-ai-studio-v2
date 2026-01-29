@@ -37,6 +37,7 @@ const App: React.FC = () => {
     setError(null);
     
     const newResults: BatchResultItem[] = [];
+    const errors: string[] = [];
 
     try {
       for (let i = 0; i < imagesToProcess.length; i++) {
@@ -44,9 +45,9 @@ const App: React.FC = () => {
         try {
           setProgress({ current: i + 1, total: imagesToProcess.length });
           
-          // Add a small delay between requests to avoid potential rate limiting
+          // Delay to prevent rate limiting (1.5s)
           if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 800));
+            await new Promise(resolve => setTimeout(resolve, 1500));
           }
 
           const result = await generateFurnitureImage(img, feature, option);
@@ -57,27 +58,35 @@ const App: React.FC = () => {
             processed: result.imageUrl,
             cost: result.cost
           });
-        } catch (innerErr) {
+        } catch (innerErr: any) {
            console.error(`Error processing image ${i}:`, innerErr);
-           // In batch mode, we continue even if one fails, unless it's a critical auth error
-           if (innerErr instanceof Error && innerErr.message === "KEY_ERROR") {
+           const msg = innerErr.message || "Unknown error";
+           errors.push(`Ảnh ${i + 1}: ${msg}`);
+           
+           if (msg === "KEY_ERROR") {
              throw innerErr;
            }
         }
       }
       
       if (newResults.length === 0) {
-        throw new Error("Không thể xử lý bất kỳ ảnh nào. Vui lòng thử lại.");
+        // If all failed, show the first error detail
+        throw new Error(errors[0] || "Không thể xử lý bất kỳ ảnh nào. Vui lòng thử lại.");
       }
 
+      // If some failed but some succeeded, maybe warn user? 
+      // For now, just show what succeeded.
       setBatchResults(prev => specificInputImage ? [...newResults] : newResults);
       setStep(AppStep.RESULT);
+
+      if (errors.length > 0) {
+        setError(`Đã xử lý ${newResults.length}/${imagesToProcess.length} ảnh. Lỗi: ${errors.length} ảnh.`);
+      }
 
     } catch (err: any) {
       console.error("Processing error:", err);
       let errorMessage = err.message || "Đã xảy ra lỗi trong quá trình xử lý.";
       
-      // Handle specific server-side errors
       if (errorMessage === "KEY_ERROR") {
          errorMessage = "Lỗi xác thực API Key. Vui lòng kiểm tra file .env ở phía Server/Vercel.";
       } else if (
