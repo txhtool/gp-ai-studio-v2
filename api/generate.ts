@@ -1,71 +1,126 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Config for Vercel Serverless Function
+// Define enums locally for server-side usage
+enum FeatureType {
+  MULTI_ANGLE = 'MULTI_ANGLE',
+  SCENE_PLACEMENT = 'SCENE_PLACEMENT',
+  BACKGROUND_REMOVAL = 'BACKGROUND_REMOVAL',
+}
+
+enum AngleOption {
+  FRONT = 'Front view (straight on)',
+  BACK = 'Rear view (back side)',
+  LEFT = 'Left side view',
+  RIGHT = 'Right side view',
+  SLANTED = 'Slightly tilted side view (15-30 degrees)',
+  THREE_QUARTER = '3/4 isometric view',
+  TOP_DOWN = 'Top-down overhead view',
+  LOW_ANGLE = 'Low angle view (looking slightly up)',
+  CUSTOM = 'CUSTOM',
+}
+
+enum RoomOption {
+  LIVING_ROOM = 'Living room',
+  DINING_ROOM = 'Dining room',
+  BEDROOM = 'Bedroom',
+  OFFICE = 'Modern Home Office',
+  OUTDOOR = 'Outdoor Patio / Garden',
+  CUSTOM = 'CUSTOM',
+}
+
+// Increase body size limit to 4.5MB (max for Vercel Serverless)
 export const config = {
-  maxDuration: 60, // Attempt to set timeout to 60 seconds (Standard on Pro, 10s on Hobby)
+  api: {
+    bodyParser: {
+      sizeLimit: '4.5mb',
+    },
+  },
 };
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const MODEL_NAME = 'gemini-2.5-flash-image';
-
-const cleanBase64 = (dataUrl: string): string => {
-  // Handle case where dataUrl might not have the prefix or is malformed
-  if (dataUrl.includes(',')) {
-    return dataUrl.split(',')[1];
-  }
-  return dataUrl;
-};
+const ESTIMATED_COST_USD = 0.002;
+const EXCHANGE_RATE = 25400;
 
 export default async function handler(req: any, res: any) {
-  // Only allow POST requests
+  // Config CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method Not Allowed' });
+    return res.status(405).json({ message: "Method Not Allowed" });
   }
 
   try {
-    const { originalImageBase64, featureType, option } = req.body;
+    const body = req.body || {};
+    const { image, featureType, option } = body;
 
-    if (!originalImageBase64 || !featureType || !option) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!image || !featureType) {
+      return res.status(400).json({ message: "Missing required fields (image or featureType)" });
     }
 
-    // Verify API Key exists
     if (!process.env.API_KEY) {
-      return res.status(500).json({ message: "Server configuration error: Missing API Key" });
+      return res.status(500).json({ message: "KEY_ERROR" });
     }
 
-    const cleanImage = cleanBase64(originalImageBase64);
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const MODEL_NAME = 'gemini-2.5-flash-image';
+
     let prompt = "";
 
-    if (featureType === 'MULTI_ANGLE') {
+    if (featureType === FeatureType.MULTI_ANGLE) {
       prompt = `You are a professional product photographer. 
       Your task is to photograph the furniture item provided in the input image from a specific new angle.
 
       Target Viewpoint: ${option}.
 
       CRITICAL INSTRUCTIONS:
-      1. TRANSFORMATION: You must rotate the object to match the Target Viewpoint exactly. Do not output the original view.
-      2. INFERENCE: If the new view (e.g., Back, Top-down) hides details or reveals unseen areas, logically infer the design based on the item's style and symmetry.
+      1. TRANSFORMATION: You must rotate the object to match the Target Viewpoint exactly.
+      2. INFERENCE: If the new view hides details, logically infer the design based on the item's style.
       3. BACKGROUND: Place the object in a professional, neutral studio background (soft grey/white). COMPLETELY REMOVE the original background.
       4. FIDELITY: Keep the materials, colors, and design details identical to the product in the input image.
-      5. QUANTITY: PRESERVE EXACT NUMBER OF ITEMS. Do not add or remove any furniture pieces. If the input has 1 chair, the output must have exactly 1 chair.
+      5. QUANTITY: PRESERVE EXACT NUMBER OF ITEMS. Do not add or remove any furniture pieces.
       
-      The result must look like a fresh photo taken from the requested angle, distinctly different from the original image composition.`;
-    } else if (featureType === 'SCENE_PLACEMENT') {
-      prompt = `You are a professional interior designer and 3D artist.
-      Your task is to place the furniture item from the input image into a completely new environment.
+      The result must look like a fresh photo taken from the requested angle.`;
+    } else if (featureType === FeatureType.SCENE_PLACEMENT) {
+      const optionStr = String(option);
+      const isCustomDescription = optionStr.length > 25 || (optionStr.includes(' ') && !Object.values(RoomOption).includes(option as RoomOption));
+      
+      const sceneDescription = isCustomDescription 
+        ? `a custom environment described as: "${optionStr}"` 
+        : `a brand new, high-end, photorealistic ${optionStr}`;
 
-      Target Scene: ${option}.
+      prompt = `You are a professional interior designer.
+      Your task is to place the furniture item from the input image into a specific environment.
+
+      Target Scene: ${optionStr}.
 
       CRITICAL INSTRUCTIONS:
-      1. NEW ENVIRONMENT: Place the product in a brand new, high-end, photorealistic ${option}.
-      2. DIFFERENTIATION: The background and lighting MUST be completely different from the original image. Do not preserve the original room context.
-      3. INTEGRATION: Ensure realistic shadows, reflections, and lighting that match the new scene.
+      1. NEW ENVIRONMENT: Place the product in ${sceneDescription}.
+      2. DIFFERENTIATION: The background and lighting MUST be completely different from the original image.
+      3. INTEGRATION: Ensure realistic shadows, reflections, and lighting matching the scene.
       4. ISOLATION: Cleanly separate the furniture from its original background before placing it.
-      5. QUANTITY: PRESERVE EXACT NUMBER OF ITEMS. Do not add or remove any furniture pieces. If the input has 1 chair, the output must have exactly 1 chair.
       
-      The final image should look like a professional catalog photo in a modern home setting.`;
+      The final image should look like a professional catalog photo in the requested setting.`;
+    } else if (featureType === FeatureType.BACKGROUND_REMOVAL) {
+      prompt = `You are an expert product photo retoucher.
+      Your task is to ISOLATE the furniture item from the input image and REMOVE THE BACKGROUND COMPLETELY.
+
+      CRITICAL INSTRUCTIONS:
+      1. TRANSPARENCY: The output MUST have a TRANSPARENT background (Alpha channel).
+      2. FORMAT: The generated image must be a PNG.
+      3. EDGES: The edges of the product must be extremely sharp and precise. No halos.
+      4. INTEGRITY: The product itself must remain 100% identical to the source.
+      
+      Output the isolated product image on a transparent background (PNG).`;
     }
 
     const response = await ai.models.generateContent({
@@ -76,7 +131,7 @@ export default async function handler(req: any, res: any) {
           {
             inlineData: {
               mimeType: 'image/jpeg',
-              data: cleanImage,
+              data: image,
             },
           },
         ],
@@ -88,27 +143,29 @@ export default async function handler(req: any, res: any) {
       const parts = candidates[0].content.parts;
       for (const part of parts) {
         if (part.inlineData && part.inlineData.data) {
-          const resultData = `data:image/jpeg;base64,${part.inlineData.data}`;
-          return res.status(200).json({ result: resultData });
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          const resultData = `data:${mimeType};base64,${part.inlineData.data}`;
+          
+          const costUsd = ESTIMATED_COST_USD;
+          const costVnd = Math.round(costUsd * EXCHANGE_RATE);
+
+          return res.status(200).json({
+            imageUrl: resultData,
+            cost: {
+              usd: `$${costUsd.toFixed(4)}`,
+              vnd: `${costVnd.toLocaleString('vi-VN')} đ`
+            }
+          });
         }
       }
     }
 
-    return res.status(500).json({ message: "Không tìm thấy dữ liệu ảnh trong phản hồi từ AI." });
+    return res.status(500).json({ message: "No image generated by AI" });
 
   } catch (error: any) {
-    console.error("Server API Error:", error);
-    
-    // Detect Rate Limit / Quota errors
-    const isRateLimit = error.message?.includes('429') || 
-                        error.message?.includes('Quota exceeded') || 
-                        error.status === 429;
-                        
-    const status = isRateLimit ? 429 : 500;
-    
-    return res.status(status).json({ 
-      message: error.message || "Internal Server Error",
-      code: status 
+    console.error("Backend Error:", error);
+    return res.status(500).json({ 
+      message: error.message || "Internal Server Error" 
     });
   }
 }

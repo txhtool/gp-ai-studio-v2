@@ -2,10 +2,6 @@ import { FeatureType, AngleOption, RoomOption, GenerationResult } from "../types
 
 export const MODEL_NAME = 'gemini-2.5-flash-image';
 
-// Cost constants
-const ESTIMATED_COST_USD = 0.002;
-const EXCHANGE_RATE = 25400;
-
 // Helper function to compress image (Client side optimization)
 const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.8): Promise<string> => {
   return new Promise((resolve) => {
@@ -45,54 +41,48 @@ const compressImage = (base64Str: string, maxWidth = 1024, quality = 0.8): Promi
   });
 };
 
+const cleanBase64 = (dataUrl: string): string => {
+  if (dataUrl.includes(',')) {
+    return dataUrl.split(',')[1];
+  }
+  return dataUrl;
+};
+
 export const generateFurnitureImage = async (
   originalImageBase64: string,
   featureType: FeatureType,
-  option: AngleOption | RoomOption
+  option: AngleOption | RoomOption | string
 ): Promise<GenerationResult> => {
   
-  // 1. Compress image client-side to save bandwidth
-  const compressedImage = await compressImage(originalImageBase64);
-
   try {
-    // 2. Call Vercel Serverless Function
+    // 1. Compress image client-side to save bandwidth before sending to server
+    const compressedImage = await compressImage(originalImageBase64);
+    const cleanImage = cleanBase64(compressedImage);
+
+    // 2. Call our own Serverless Backend
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        originalImageBase64: compressedImage,
+        image: cleanImage,
         featureType,
-        option
+        option,
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Server error: ${response.status}`);
+      const errorData = await response.json();
+      // Pass the specific error message from server to the UI
+      throw new Error(errorData.message || 'Server processing failed');
     }
 
     const data = await response.json();
-    
-    if (!data.result) {
-      throw new Error("Invalid response format from server");
-    }
-
-    // Calculate estimated cost
-    const costUsd = ESTIMATED_COST_USD;
-    const costVnd = Math.round(costUsd * EXCHANGE_RATE);
-
-    return {
-      imageUrl: data.result,
-      cost: {
-        usd: `$${costUsd.toFixed(4)}`,
-        vnd: `${costVnd.toLocaleString('vi-VN')} đ`
-      }
-    };
+    return data;
 
   } catch (error: any) {
-    console.error("API Call Failed:", error);
+    console.error("Service Generation Failed:", error);
     throw error;
   }
 };
