@@ -44,6 +44,11 @@ const App: React.FC = () => {
         try {
           setProgress({ current: i + 1, total: imagesToProcess.length });
           
+          // Add a small delay between requests to avoid potential rate limiting
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
+
           const result = await generateFurnitureImage(img, feature, option);
           
           newResults.push({

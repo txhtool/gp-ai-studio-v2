@@ -111,29 +111,29 @@ export default async function handler(req: any, res: any) {
       
       The final image should look like a professional catalog photo in the requested setting.`;
     } else if (featureType === FeatureType.BACKGROUND_REMOVAL) {
-      prompt = `You are an expert product photo retoucher.
-      Your task is to ISOLATE the furniture item from the input image and REMOVE THE BACKGROUND COMPLETELY.
-
-      CRITICAL INSTRUCTIONS:
-      1. TRANSPARENCY: The output MUST have a TRANSPARENT background (Alpha channel).
-      2. FORMAT: The generated image must be a PNG.
-      3. EDGES: The edges of the product must be extremely sharp and precise. No halos.
-      4. INTEGRITY: The product itself must remain 100% identical to the source.
+      prompt = `Task: EXTRACT the main furniture item from the image and place it on a TRANSPARENT background.
       
-      Output the isolated product image on a transparent background (PNG).`;
+      STRICT REQUIREMENTS:
+      1. OUTPUT FORMAT: PNG with Alpha Channel.
+      2. BACKGROUND: Must be 100% TRANSPARENT. Do NOT generate a white or colored background.
+      3. SUBJECT: Preserve the original furniture appearance, texture, and color exactly.
+      4. QUALITY: Edges must be sharp and clean.
+      
+      Return ONLY the furniture item on a transparent layer.`;
     }
 
+    // IMPORTANT: Send image part FIRST, then text prompt. This is often more effective for image editing tasks.
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
-          { text: prompt },
           {
             inlineData: {
               mimeType: 'image/jpeg',
               data: image,
             },
           },
+          { text: prompt },
         ],
       },
     });
