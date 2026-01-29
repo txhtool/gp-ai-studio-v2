@@ -191,7 +191,7 @@ const App: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 mt-auto py-8">
         <div className="max-w-7xl mx-auto px-4 text-center">
            <h3 className="text-lg font-bold text-gray-900">GP AI Studio</h3>
-           <p className="text-sm text-gray-500 mt-1">Phiên bản V3.0.0 (Server-side Secure)</p>
+           <p className="text-sm text-gray-500 mt-1">Phiên bản V3.1 (Stable Fix)</p>
            <div className="flex flex-wrap justify-center gap-4 mt-3 text-sm font-medium text-gray-600">
               <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-teal-500 mr-2"></span>Tách nền hàng loạt</span>
               <span className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-2"></span>Phối cảnh không gian</span>
