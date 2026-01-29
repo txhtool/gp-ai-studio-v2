@@ -72,9 +72,16 @@ export const generateFurnitureImage = async (
       }),
     });
 
+    // Handle non-JSON responses (e.g., Vercel 404/500 HTML pages or timeouts)
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") === -1) {
+      const text = await response.text();
+      console.error("Non-JSON response from server:", text.substring(0, 200)); 
+      throw new Error(`Server Error: API trả về ${response.status}. Vui lòng kiểm tra Log trên Vercel.`);
+    }
+
     if (!response.ok) {
       const errorData = await response.json();
-      // Pass the specific error message from server to the UI
       throw new Error(errorData.message || 'Server processing failed');
     }
 
@@ -83,6 +90,10 @@ export const generateFurnitureImage = async (
 
   } catch (error: any) {
     console.error("Service Generation Failed:", error);
+    // Cải thiện thông báo lỗi cho người dùng
+    if (error.message && (error.message.includes("Unexpected token") || error.message.includes("JSON"))) {
+        throw new Error("Lỗi kết nối API (Route Not Found). Vui lòng thử lại sau vài giây.");
+    }
     throw error;
   }
 };
